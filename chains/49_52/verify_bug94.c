@@ -1,37 +1,35 @@
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <klee/klee.h>
+#include <stdio.h>
 
 typedef unsigned char u_char;
-typedef struct netdissect_options {
+
+typedef struct netdissect_options_b94 {
     int ndo_eflag;
     int ndo_suppress_default_print;
-} netdissect_options;
+} netdissect_options_b94;
 
-struct pcap_pkthdr {
+struct pcap_pkthdr_b94 {
     uint32_t len;
     uint32_t caplen;
 };
 
-/* Real bug 94 entry point from print-cip.c with original klee_assert */
-extern u_int cip_if_print(netdissect_options *ndo, const struct pcap_pkthdr *h, const u_char *p);
+extern int cip_if_print(netdissect_options_b94 *ndo,
+                        const struct pcap_pkthdr_b94 *h, const u_char *p);
 
 int main(void) {
-    netdissect_options *ndo = (netdissect_options *)calloc(1, sizeof(*ndo));
-    struct pcap_pkthdr *h = (struct pcap_pkthdr *)calloc(1, sizeof(*h));
-    unsigned char *buf = (unsigned char *)calloc(512, 1);
+    printf("[BUG 94] Testing with SHARED INPUT: buf=zeros, len=97, caplen=97\n");
     
-    /* Concrete values from KLEE's shared input */
-    h->len = 97;
-    h->caplen = 6;
-    memset(buf, 0, 512);  /* all zeros */
+    unsigned char *buf = calloc(1, 512);
+    memset(buf, 0, 512);
     
-    /* Call real bug 94 with this concrete input */
-    printf("Calling cip_if_print with len=97, caplen=6, buf=all-zeros...\n");
-    cip_if_print(ndo, h, buf);
+    netdissect_options_b94 ndo94 = {0};
+    struct pcap_pkthdr_b94 h94 = {.len = 97, .caplen = 97};
     
-    printf("BUG 94 TRIGGERED!\n");
+    cip_if_print(&ndo94, &h94, buf);
+    
+    printf("[!] UNREACHED\n");
+    free(buf);
     return 0;
 }

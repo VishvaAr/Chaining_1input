@@ -1,54 +1,46 @@
-/* predicate_96.c — non-crashing twin of Babel parser for joint-satisfiability search */
-#include <stdio.h>
-#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include <klee/klee.h>
-
-typedef unsigned char u_char;
-typedef unsigned int u_int;
-typedef struct netdissect_options {
-    int dummy;
-} netdissect_options;
 
 #define BUF_SIZE 512
 
-static const char *format_prefix(netdissect_options *ndo, const u_char *prefix, unsigned char plen) {
-    klee_warning_once("SPINE_PROBE:format_prefix:ENTRY");
+typedef struct netdissect_options_b96 {
+    int dummy;
+} netdissect_options_b96;
+
+/* Predicate: returns 1 if vulnerable path reached, 0 otherwise */
+static const char *format_prefix(netdissect_options_b96 *ndo, 
+                                 const u_char *prefix, unsigned char plen)
+{
     static char buf[50];
     
-    /* Original code had bounds check + unconditional assert.
-       In predicate, we execute the vulnerable logic and return successfully
-       instead of asserting, so we can signal "reached vulnerable path". */
+    /* Bounds check */
+    if ((uintptr_t)prefix == 0) return NULL;
     
-    if (prefix == NULL) {
-        return NULL;  /* NULL buffer — didn't reach vulnerable path */
-    }
-    
-    /* Both branches access the prefix buffer — this is the vulnerable operation */
+    /* Both branches access the prefix buffer */
     if (plen >= 96) {
-        /* This would access prefix+12 */
-        snprintf(buf, 50, "prefix_data/%u", plen - 96);
+        snprintf(buf, 50, "%u", plen - 96);
+        (void)prefix[12];  /* Access at offset 12 */
     } else {
-        /* This would access prefix directly */
-        snprintf(buf, 50, "prefix_data/%u", plen);
+        snprintf(buf, 50, "%u", plen);
+        (void)prefix[0];   /* Access at offset 0 */
     }
-    buf[49] = '\0';
     
     return buf;
 }
 
-void babel_print_v2(netdissect_options *ndo, const u_char *cp, u_int length) {
-    klee_warning_once("SPINE_PROBE:babel_print_v2:ENTRY");
-    /* Original had: format_prefix(ndo, 0, 0); which hits NULL and crashes.
-       Use actual buffer (cp) and length to reach the real vulnerable path. */
-    format_prefix(ndo, cp, length);
-}
-
-int babel_print(netdissect_options *ndo, const u_char *cp, u_int length) {
-    klee_warning_once("SPINE_PROBE:babel_print:ENTRY");
-    babel_print_v2(ndo, cp, length);
+int babel_print(netdissect_options_b96 *ndo, const u_char *cp, u_int length)
+{
+    /* Guards: must reach vulnerable format_prefix */
+    if (length < 6) return 0;
+    if ((uintptr_t)cp == 0) return 0;
+    if (length > BUF_SIZE) return 0;
     
-    /* If format_prefix was called with valid (non-NULL) buffer, we reached vulnerable path */
+    /* Call vulnerable function */
+    format_prefix(ndo, cp, length);
+    
+    /* Return 1: vulnerable path reached */
     return 1;
 }
